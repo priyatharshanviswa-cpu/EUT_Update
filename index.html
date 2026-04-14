@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>LGT Back Office — Site Assessment</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --brand:    #00B87A; --brand-dk: #008A5C; --brand-lt: #E6F9F2;
+      --warn:     #FF6B35; --warn-lt:  #FFF0EB;
+      --info:     #4A90D9; --info-lt:  #EBF3FC;
+      --surface:  #FFFFFF; --bg:       #F4F6F8;
+      --border:   #E2E6EA; --text:     #1A2332; --muted: #7A8899;
+      --radius:   14px;    --shadow:   0 2px 12px rgba(0,0,0,0.08);
+    }
+    * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+    body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; overflow-x:hidden; }
+
+    /* ── SYNC BANNER ── */
+    #syncBanner {
+      position:fixed; top:0; left:0; right:0; z-index:200;
+      height:0; overflow:hidden; transition:height 0.3s ease;
+      display:flex; align-items:center; justify-content:center;
+      font-size:13px; font-weight:600; gap:8px;
+    }
+    #syncBanner.show    { height:36px; }
+    #syncBanner.offline { background:#FFE0D0; color:#B83000; }
+    #syncBanner.saving  { background:#FFF8D0; color:#7A5C00; }
+    #syncBanner.saved   { background:#D0F5E8; color:#005A38; }
+    #syncBanner.queued  { background:#E8E0FF; color:#3B1FA8; }
+    #syncBanner.error   { background:#FFD5D5; color:#A00000; }
+    .banner-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; background:currentColor; opacity:0.6; }
+    .banner-dot.pulse { animation:pulse 1.2s ease infinite; }
+    @keyframes pulse { 0%,100%{opacity:0.6} 50%{opacity:0.15} }
+
+    /* ── TOP BAR ── */
+    .top-bar {
+      position:fixed; left:0; right:0; z-index:100; background:var(--brand);
+      padding:0 20px; height:56px;
+      display:flex; align-items:center; justify-content:space-between;
+      box-shadow:0 2px 8px rgba(0,184,122,0.3); transition:top 0.3s ease;
+    }
+    .top-bar-logo { color:white; font-weight:700; font-size:15px; letter-spacing:0.5px; }
+    .top-bar-logo span { opacity:0.75; font-weight:400; }
+    .top-bar-right { display:flex; align-items:center; gap:10px; }
+    .top-bar-step  { color:rgba(255,255,255,0.85); font-size:13px; font-weight:500; }
+    .offline-pill {
+      background:rgba(255,255,255,0.25); color:white;
+      font-size:11px; font-weight:700; padding:3px 8px; border-radius:20px;
+      letter-spacing:0.5px; display:none;
+    }
+    .offline-pill.show { display:block; }
+
+    /* ── PROGRESS ── */
+    .progress-track { position:fixed; left:0; right:0; z-index:99; height:5px; background:rgba(0,184,122,0.2); transition:top 0.3s ease; }
+    .progress-fill  { height:100%; background:white; transition:width 0.4s cubic-bezier(.4,0,.2,1); box-shadow:0 0 8px rgba(255,255,255,0.6); }
+
+    /* ── DOTS ── */
+    .step-dots { position:fixed; left:0; right:0; z-index:98; background:var(--brand); display:flex; align-items:center; justify-content:center; gap:8px; padding:8px 20px; transition:top 0.3s ease; }
+    .dot { width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,0.3); transition:all 0.3s; cursor:pointer; }
+    .dot.active { background:white; width:24px; border-radius:4px; }
+    .dot.done   { background:rgba(255,255,255,0.7); }
+
+    /* ── LAYOUT ── */
+    .app { max-width:560px; margin:0 auto; padding:128px 16px 100px; min-height:100vh; transition:padding-top 0.3s ease; }
+    .app.banner-open { padding-top:164px; }
+
+    /* ── STEP HEADER ── */
+    .step-header { margin-bottom:20px; animation:slideDown 0.35s ease; }
+    .step-badge { display:inline-flex; align-items:center; gap:6px; background:var(--brand-lt); color:var(--brand-dk); font-size:11px; font-weight:700; letter-spacing:1px; text-transform:uppercase; padding:4px 10px; border-radius:20px; margin-bottom:10px; }
+    .step-badge-dot { width:6px; height:6px; border-radius:50%; background:var(--brand); }
+    .step-title { font-size:26px; font-weight:700; color:var(--text); line-height:1.2; margin-bottom:6px; }
+    .step-desc  { font-size:14px; color:var(--muted); line-height:1.55; }
+
+    /* ── CARDS ── */
+    .card { background:var(--surface); border-radius:var(--radius); border:1px solid var(--border); padding:20px; margin-bottom:14px; box-shadow:var(--shadow); animation:fadeUp 0.3s ease; }
+    .card-title { font-size:11px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--muted); margin-bottom:16px; padding-bottom:10px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; }
+    .card-title-icon { width:22px; height:22px; border-radius:6px; background:var(--brand-lt); color:var(--brand); display:flex; align-items:center; justify-content:center; font-size:12px; }
+
+    /* ── FIELDS ── */
+    .field { margin-bottom:16px; }
+    .field:last-child { margin-bottom:0; }
+    label { font-size:13px; color:var(--muted); font-weight:600; display:block; margin-bottom:7px; }
+    label .req { color:var(--warn); margin-left:2px; }
+    input[type=text],input[type=number],input[type=tel],textarea,select {
+      width:100%; font-size:15px; padding:12px 14px;
+      border:1.5px solid var(--border); border-radius:10px;
+      background:#FAFBFC; color:var(--text); outline:none;
+      font-family:'DM Sans',sans-serif;
+      transition:border-color 0.2s,box-shadow 0.2s;
+      -webkit-appearance:none; appearance:none;
+    }
+    input:focus,textarea:focus,select:focus { border-color:var(--brand); background:white; box-shadow:0 0 0 3px rgba(0,184,122,0.12); }
+    input[type=number] { text-align:center; font-size:16px; padding:10px 8px; }
+    textarea { resize:vertical; min-height:80px; line-height:1.55; }
+    select { background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237A8899' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 14px center; padding-right:36px; }
+
+    /* ── TWO COL ── */
+    .two-col { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+
+    /* ── TOGGLE BUTTONS ── */
+    .toggle-group { display:flex; gap:8px; }
+    .toggle-btn { flex:1; padding:12px 10px; border:1.5px solid var(--border); border-radius:10px; font-size:14px; font-weight:600; cursor:pointer; text-align:center; background:#FAFBFC; color:var(--muted); transition:all 0.18s; user-select:none; }
+    .toggle-btn.active { background:var(--brand-lt); border-color:var(--brand); color:var(--brand-dk); box-shadow:0 0 0 3px rgba(0,184,122,0.1); }
+    .toggle-btn.active-warn { background:var(--warn-lt); border-color:var(--warn); color:var(--warn); }
+
+    /* ── NUM ROW ── */
+    .num-row { display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid var(--border); }
+    .num-row:last-child { border-bottom:none; }
+    .num-info { flex:1; }
+    .num-label { font-size:14px; color:var(--text); font-weight:500; }
+    .num-sub   { font-size:11px; color:var(--muted); margin-top:2px; }
+    .num-input-wrap { display:flex; align-items:center; border:1.5px solid var(--border); border-radius:10px; overflow:hidden; background:#FAFBFC; flex-shrink:0; }
+    .num-btn  { width:36px; height:36px; border:none; background:transparent; font-size:18px; font-weight:600; color:var(--brand); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 0.15s; }
+    .num-btn:active { background:var(--brand-lt); }
+    .num-field { width:52px; font-size:15px; font-weight:600; text-align:center; border:none; border-left:1px solid var(--border); border-right:1px solid var(--border); background:transparent; outline:none; padding:0; font-family:'DM Sans',sans-serif; color:var(--text); height:36px; -moz-appearance:textfield; }
+    .num-field::-webkit-inner-spin-button,.num-field::-webkit-outer-spin-button { -webkit-appearance:none; }
+
+    /* ── YES/NO + QTY ROW ── */
+    .yn-row { display:grid; grid-template-columns:1fr auto; align-items:center; padding:11px 0; border-bottom:1px solid var(--border); gap:12px; }
+    .yn-row:last-child { border-bottom:none; }
+    .yn-label { font-size:14px; color:var(--text); font-weight:500; }
+    .yn-controls { display:flex; align-items:center; gap:8px; }
+    .yn-btn { padding:6px 14px; border:1.5px solid var(--border); border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; background:#FAFBFC; color:var(--muted); transition:all 0.15s; }
+    .yn-btn.yes { background:var(--brand-lt); border-color:var(--brand); color:var(--brand-dk); }
+    .yn-btn.no  { background:#FFF; border-color:#ccc; color:var(--muted); }
+    .yn-qty-wrap { display:flex; align-items:center; border:1.5px solid var(--border); border-radius:8px; overflow:hidden; background:white; }
+    .yn-qty-btn { width:28px; height:32px; border:none; background:transparent; font-size:16px; color:var(--brand); cursor:pointer; display:flex; align-items:center; justify-content:center; }
+    .yn-qty-in  { width:40px; height:32px; border:none; border-left:1px solid var(--border); border-right:1px solid var(--border); text-align:center; font-size:14px; font-weight:600; background:transparent; outline:none; font-family:'DM Sans',sans-serif; -moz-appearance:textfield; }
+    .yn-qty-in::-webkit-inner-spin-button { -webkit-appearance:none; }
+
+    /* ── BOXES ── */
+    .info-box   { background:var(--info-lt); border:1px solid #C0D8F0; border-radius:10px; padding:12px 14px; margin-top:10px; font-size:13px; color:#2C5F8A; line-height:1.55; display:flex; gap:10px; align-items:flex-start; }
+    .warn-box   { background:var(--warn-lt); border:1px solid #FFD0BD; border-radius:10px; padding:12px 14px; margin-top:10px; font-size:13px; color:#C0430F; line-height:1.55; display:flex; gap:10px; align-items:flex-start; }
+    .queued-box { background:#EDE9FF; border:1px solid #C4B8FF; border-radius:10px; padding:12px 14px; margin-bottom:14px; font-size:13px; color:#3B1FA8; line-height:1.55; display:flex; gap:10px; align-items:flex-start; }
+    .info-box-icon { font-size:16px; margin-top:1px; flex-shrink:0; }
+
+    /* ── REVIEW ── */
+    .review-section-title { font-size:11px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--muted); padding:0 4px; margin:20px 0 8px; }
+    .review-row { display:flex; justify-content:space-between; align-items:flex-start; padding:10px 0; border-bottom:1px solid var(--border); gap:16px; }
+    .review-row:last-child { border-bottom:none; }
+    .rk { color:var(--muted); flex-shrink:0; width:155px; font-size:13px; }
+    .rv { color:var(--text); font-weight:600; text-align:right; flex:1; font-size:13px; }
+    .rv.yes-val { color:var(--brand-dk); }
+    .rv.no-val  { color:var(--muted); }
+
+    /* ── SUCCESS ── */
+    .success-screen { text-align:center; padding:40px 20px; animation:fadeUp 0.4s ease; }
+    .success-icon { width:80px; height:80px; border-radius:50%; background:var(--brand); margin:0 auto 20px; display:flex; align-items:center; justify-content:center; font-size:36px; color:white; box-shadow:0 8px 24px rgba(0,184,122,0.35); }
+    .success-title { font-size:26px; font-weight:700; margin-bottom:8px; }
+    .success-sub   { font-size:15px; color:var(--muted); margin-bottom:28px; line-height:1.6; }
+    .success-links { display:flex; flex-direction:column; gap:10px; }
+    .link-btn { display:flex; align-items:center; justify-content:center; gap:10px; padding:14px 20px; border-radius:12px; font-size:15px; font-weight:600; text-decoration:none; border:1.5px solid var(--border); color:var(--text); background:var(--surface); transition:all 0.2s; }
+    .link-btn.primary { background:var(--brand); color:white; border-color:var(--brand); }
+
+    /* ── CHIP ── */
+    .chip { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:10px 12px; font-family:'DM Mono',monospace; font-size:12px; color:var(--muted); word-break:break-all; line-height:1.6; margin-top:8px; }
+
+    /* ── POWER LINK ── */
+    .power-link-card { background:linear-gradient(135deg,#FF6B35 0%,#FF8C5A 100%); border-radius:var(--radius); padding:20px; color:white; margin-bottom:14px; box-shadow:0 6px 20px rgba(255,107,53,0.3); }
+    .power-link-title { font-size:15px; font-weight:700; margin-bottom:6px; }
+    .power-link-sub   { font-size:13px; opacity:0.85; margin-bottom:14px; line-height:1.5; }
+    .power-link-btn   { display:inline-flex; align-items:center; gap:8px; background:white; color:#C0430F; padding:10px 18px; border-radius:8px; font-size:14px; font-weight:700; text-decoration:none; }
+
+    /* ── NAV ── */
+    .bottom-nav { position:fixed; bottom:0; left:0; right:0; z-index:100; background:rgba(255,255,255,0.96); backdrop-filter:blur(12px); border-top:1px solid var(--border); padding:12px 16px; padding-bottom:calc(12px + env(safe-area-inset-bottom)); display:flex; gap:10px; justify-content:center; }
+    .bottom-nav-inner { max-width:560px; width:100%; display:flex; gap:10px; }
+    .btn-back { flex:1; padding:15px; border:1.5px solid var(--border); border-radius:12px; font-size:15px; font-weight:600; background:transparent; color:var(--text); cursor:pointer; font-family:'DM Sans',sans-serif; transition:all 0.15s; }
+    .btn-next { flex:2; padding:15px; border:none; border-radius:12px; font-size:15px; font-weight:700; background:var(--brand); color:white; cursor:pointer; font-family:'DM Sans',sans-serif; transition:all 0.15s; box-shadow:0 4px 14px rgba(0,184,122,0.35); }
+    .btn-next:active   { transform:scale(0.98); }
+    .btn-next:disabled { background:#ccc; box-shadow:none; cursor:not-allowed; }
+
+    /* ── SPINNER ── */
+    .spinner { display:inline-block; width:18px; height:18px; border:2px solid rgba(255,255,255,0.4); border-top-color:white; border-radius:50%; animation:spin 0.7s linear infinite; vertical-align:middle; margin-right:8px; }
+
+    @keyframes fadeUp    { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes slideDown { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes spin      { to{transform:rotate(360deg)} }
+
+    @media (min-width:600px) {
+      .app { padding:136px 24px 110px; }
+      .app.banner-open { padding-top:172px; }
+      .step-title { font-size:30px; }
+      .two-col { gap:16px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- SYNC STATUS BANNER -->
+<div id="syncBanner">
+  <span class="banner-dot" id="bannerDot"></span>
+  <span id="bannerText"></span>
+</div>
+
+<!-- TOP BAR -->
+<div class="top-bar" id="topBar" style="top:0">
+  <div class="top-bar-logo">LGT <span>· Back Office HIM</span></div>
+  <div class="top-bar-right">
+    <div class="offline-pill" id="offlinePill">OFFLINE</div>
+    <div class="top-bar-step" id="topStep">Step 1 of 6</div>
+  </div>
+</div>
+
+<!-- PROGRESS BAR -->
+<div class="progress-track" id="progressTrack" style="top:56px">
+  <div class="progress-fill" id="progressFill" style="width:16.6%"></div>
+</div>
+
+<!-- STEP DOTS -->
+<div class="step-dots" id="stepDots" style="top:61px"></div>
+
+<!-- MAIN CONTENT -->
+<div class="app" id="appContent"></div>
+
+<!-- BOTTOM NAV -->
+<div class="bottom-nav">
+  <div class="bottom-nav-inner" id="bottomNav"></div>
+</div>
+
+<script>
+// ── CONFIG ── replace these with your deployed values ─────────────────────────
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzcS0RrecoLwlVdgk9lrNj0xwBt8XCsH6cpxMPEfMpjpQ60D7KKZU0VzSMfAC1_nEF2dA/exec';
+const SHEET_URL  = 'https://docs.google.com/spreadsheets/d/1l6RwbVaag8XEaaxfLdglBeaL5n0nSKu13e9fEYDJHKk/edit?gid=0#gid=0';
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+const S = {
+  // Step 1 – Department (no dept manager field)
+  assessor:'', site:'', location:'', floor:'', room:'',
+  department:'', locationContact:'', contactDetails:'',
+  eprIcare:'', eprNoComments:'',
+
+  // Step 2 – Equipment
+  staffIcare:0,
+  wsIcare:'no',            wsIcareQty:0,
+  wsMonitors:'no',         wsMonitorsQty:0,
+  monitorsLt24:'no',       monitorsLt24Qty:0,     // workstation monitors <24"
+  laptopsIcare:'no',       laptopsIcareQty:0,
+  laptopMonitors:'no',     laptopMonitorsQty:0,
+  laptopMonitorsLt24:'no', laptopMonitorsLt24Qty:0, // laptop monitors <24"  ← NEW
+  printers:'no',           printersGP:0, printersMFD:0,
+  docScanner:'no',         docScannerQty:0,
+  badgeScanner:'no',       badgeScannerQty:0,
+  barcodeScanner:'no',     barcodeScannerQty:0,
+
+  // Step 3 – WiFi
+  wifiSatisfied:'', wifiNotes:'',
+  // Step 4 – Documentation
+  docLocation:'',
+  // Step 5 – Power
+  powerNeeds:'', powerNotes:'',
+};
+
+let step = 0;
+const TOTAL = 6;
+
+const STEP_META = [
+  { title:'Department Info',     desc:'Record site details and contact for this assessment.'     },
+  { title:'Equipment Inventory', desc:'Log iCARE workstations, laptops, printers and scanners.' },
+  { title:'WiFi Satisfaction',   desc:'Assess wireless connectivity in the department.'          },
+  { title:'Documentation',       desc:'Where does most documentation take place?'                },
+  { title:'Power Needs',         desc:'Check for existing extension cords or power issues.'      },
+  { title:'Review & Submit',     desc:'Check everything looks right, then save to Google Sheets.'},
+];
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+const $  = id => document.getElementById(id);
+const n  = v  => { const p = parseInt(v); return isNaN(p) ? 0 : Math.max(0,p); };
+
+function buildFilename() {
+  const d    = new Date();
+  const dd   = String(d.getDate()).padStart(2,'0');
+  const mm   = String(d.getMonth()+1).padStart(2,'0');
+  const yyyy = d.getFullYear();
+  return [
+    (S.site||'Site').replace(/\s+/g,'_'),
+    (S.location||'Location').replace(/\s+/g,'_'),
+    (S.department||'Dept').replace(/\s+/g,'_'),
+    (S.room||'Room').replace(/\s+/g,'_'),
+    `${dd}_${mm}_${yyyy}`
+  ].join('_');
+}
+
+// ── OFFLINE / SYNC ────────────────────────────────────────────────────────────
+const QUEUE_KEY = 'lgt_offline_queue';
+let isOnline = navigator.onLine;
+
+function getQueue()   { try { return JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]'); } catch(e){ return []; } }
+function saveQueue(q) { localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); }
+function enqueue(p)   { const q=getQueue(); q.push({payload:p,ts:Date.now()}); saveQueue(q); }
+
+function showBanner(type, text, autoDismissMs) {
+  const BANNER_H = 36;
+  $('syncBanner').className  = 'show ' + type;
+  $('bannerText').textContent = text;
+  $('bannerDot').className   = 'banner-dot' + (type==='saving'?' pulse':'');
+  $('topBar').style.top        = BANNER_H+'px';
+  $('progressTrack').style.top = (BANNER_H+56)+'px';
+  $('stepDots').style.top      = (BANNER_H+61)+'px';
+  $('appContent').classList.add('banner-open');
+  if (autoDismissMs) setTimeout(hideBanner, autoDismissMs);
+}
+
+function hideBanner() {
+  $('syncBanner').className = '';
+  $('topBar').style.top        = '0';
+  $('progressTrack').style.top = '56px';
+  $('stepDots').style.top      = '61px';
+  $('appContent').classList.remove('banner-open');
+}
+
+function updateOnlineStatus() {
+  isOnline = navigator.onLine;
+  $('offlinePill').classList.toggle('show', !isOnline);
+  if (!isOnline) {
+    showBanner('offline', "📵  You're offline — assessments saved locally, auto-sync when back online");
+  } else {
+    hideBanner();
+    flushQueue();
+  }
+}
+
+async function flushQueue() {
+  const q = getQueue();
+  if (!q.length) return;
+  showBanner('saving', `⏫  Syncing ${q.length} queued assessment${q.length>1?'s':''}…`);
+  const failed = [];
+  for (const item of q) {
+    try {
+      await fetch(SCRIPT_URL+'?data='+encodeURIComponent(JSON.stringify(item.payload)),{method:'GET',mode:'no-cors'});
+    } catch(e) { failed.push(item); }
+  }
+  saveQueue(failed);
+  if (!failed.length) showBanner('saved', '✅  All queued assessments synced to Google Sheets!', 4000);
+  else                showBanner('error', `⚠  ${failed.length} assessment(s) still pending — will retry when online`, 5000);
+}
+
+window.addEventListener('online',  updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+
+// ── RENDER ENGINE ─────────────────────────────────────────────────────────────
+function renderStep() {
+  const c = $('appContent');
+  c.innerHTML = '';
+
+  const m = STEP_META[step];
+  const visibleTotal = S.eprIcare==='no' ? 2 : TOTAL;
+  const visibleStep  = (S.eprIcare==='no' && step===TOTAL-1) ? 2 : step+1;
+
+  c.innerHTML += `
+    <div class="step-header">
+      <div class="step-badge"><span class="step-badge-dot"></span>Step ${visibleStep} of ${visibleTotal}</div>
+      <div class="step-title">${m.title}</div>
+      <div class="step-desc">${m.desc}</div>
+    </div>`;
+
+  if      (step===0) renderStep0(c);
+  else if (step===1) renderStep1(c);
+  else if (step===2) renderStep2(c);
+  else if (step===3) renderStep3(c);
+  else if (step===4) renderStep4(c);
+  else if (step===5) renderStep5(c);
+
+  $('progressFill').style.width = ((visibleStep/visibleTotal)*100)+'%';
+  $('topStep').textContent = `Step ${visibleStep} of ${visibleTotal}`;
+
+  // Step dots
+  const dotSteps = S.eprIcare==='no' ? [0,TOTAL-1] : [0,1,2,3,4,5];
+  const dotsEl = $('stepDots');
+  dotsEl.innerHTML = '';
+  dotSteps.forEach(si => {
+    const d = document.createElement('div');
+    d.className = 'dot'+(si===step?' active':si<step?' done':'');
+    d.onclick = () => { if(si<=step){ step=si; renderStep(); window.scrollTo(0,0); } };
+    dotsEl.appendChild(d);
+  });
+
+  // Nav buttons
+  const nav = $('bottomNav');
+  nav.innerHTML = '';
+  if (step > 0) {
+    const back = document.createElement('button');
+    back.className = 'btn-back'; back.textContent = '← Back';
+    back.onclick = () => {
+      if (step===TOTAL-1 && S.eprIcare==='no') step=0; else step--;
+      renderStep(); window.scrollTo(0,0);
+    };
+    nav.appendChild(back);
+  }
+  if (step < TOTAL-1) {
+    const next = document.createElement('button');
+    next.className = 'btn-next';
+    const skip = (step===0 && S.eprIcare==='no');
+    next.textContent = (step===TOTAL-2 || skip) ? 'Review →' : 'Continue →';
+    next.onclick = () => {
+      if (skip) step=TOTAL-1; else step++;
+      renderStep(); window.scrollTo(0,0);
+    };
+    nav.appendChild(next);
+  } else {
+    const sub = document.createElement('button');
+    sub.className = 'btn-next'; sub.id = 'submitBtn';
+    sub.textContent = '💾  Save to Google Sheets';
+    sub.onclick = submitForm;
+    nav.appendChild(sub);
+  }
+
+  setTimeout(bindInputs, 30);
+}
+
+// ── STEP 0: DEPARTMENT ────────────────────────────────────────────────────────
+function renderStep0(c) {
+  c.innerHTML += `
+    <div class="card">
+      <div class="card-title"><div class="card-title-icon">👤</div>Assessor</div>
+      <div class="field"><label>Your Name <span class="req">*</span></label>
+        <input type="text" id="f_assessor" value="${S.assessor}" placeholder="Full name"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><div class="card-title-icon">📍</div>Location</div>
+      <div class="two-col">
+        <div class="field"><label>Site <span class="req">*</span></label>
+          <select id="f_site">
+            <option value="">Select…</option>
+            <option value="UHL"       ${S.site==='UHL'?'selected':''}>UHL</option>
+            <option value="QEH"       ${S.site==='QEH'?'selected':''}>QEH</option>
+            <option value="Community" ${S.site==='Community'?'selected':''}>Community</option>
+            <option value="Other"     ${S.site==='Other'?'selected':''}>Other</option>
+          </select></div>
+        <div class="field"><label>Location</label>
+          <input type="text" id="f_location" value="${S.location}" placeholder="Ward/Area"></div>
+      </div>
+      <div class="two-col">
+        <div class="field"><label>Floor</label>
+          <input type="text" id="f_floor" value="${S.floor}" placeholder="e.g. 2"></div>
+        <div class="field"><label>Room</label>
+          <input type="text" id="f_room" value="${S.room}" placeholder="Room name/no."></div>
+      </div>
+      <div class="field"><label>Department</label>
+        <input type="text" id="f_department" value="${S.department}" placeholder="e.g. Back Office"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><div class="card-title-icon">📞</div>Contact</div>
+      <div class="field"><label>Location Contact</label>
+        <input type="text" id="f_locationContact" value="${S.locationContact}" placeholder="Name"></div>
+      <div class="field"><label>Contact Details</label>
+        <input type="tel" id="f_contactDetails" value="${S.contactDetails}" placeholder="Phone / email"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><div class="card-title-icon">🖥️</div>EPR System</div>
+      <div class="field"><label>Do staff use EPR – iCARE? <span class="req">*</span></label>
+        <div class="toggle-group">
+          <div class="toggle-btn ${S.eprIcare==='yes'?'active':''}"            onclick="setToggle('eprIcare','yes');renderStep()">✓ Yes</div>
+          <div class="toggle-btn ${S.eprIcare==='no'?'active active-warn':''}" onclick="setToggle('eprIcare','no');renderStep()">✗ No</div>
+        </div>
+      </div>
+      ${S.eprIcare==='yes' ? `<div class="info-box"><span class="info-box-icon">ℹ️</span>iCARE is in use — complete the equipment inventory on the next steps.</div>` : ''}
+      ${S.eprIcare==='no'  ? `
+        <div class="warn-box"><span class="info-box-icon">⚠️</span>No iCARE usage — equipment pages will be skipped. Please add any relevant comments below.</div>
+        <div class="field" style="margin-top:12px"><label>Comments / reason</label>
+          <textarea id="f_eprNoComments" placeholder="e.g. Department uses paper records only, EPR rollout pending…">${S.eprNoComments||''}</textarea></div>` : ''}
+    </div>`;
+}
+
+// ── STEP 1: EQUIPMENT ─────────────────────────────────────────────────────────
+function renderStep1(c) {
+  c.innerHTML += `
+    <div class="card">
+      <div class="card-title"><div class="card-title-icon">👥</div>Peak iCARE Users</div>
+      <div class="num-row">
+        <div class="num-info">
+          <div class="num-label">Number of staff using iCARE</div>
+          <div class="num-sub">Peak simultaneous users</div>
+        </div>
+        ${numInput('staffIcare', S.staffIcare)}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><div class="card-title-icon">🖥️</div>Workstations</div>
+      ${ynRow('wsIcare',      'Workstations running iCARE',        'wsIcareQty')}
+      ${ynRow('wsMonitors',   'Monitors attached to workstations',  'wsMonitorsQty')}
+      ${ynRow('monitorsLt24', 'Workstation monitors less than 24"', 'monitorsLt24Qty')}
+    </div>
+
+    <div class="card">
+      <div class="card-title"><div class="card-title-icon">💼</div>Laptops</div>
+      ${ynRow('laptopsIcare',       'Laptops running iCARE',          'laptopsIcareQty')}
+      ${ynRow('laptopMonitors',     'Monitors attached to laptops',   'laptopMonitorsQty')}
+      ${ynRow('laptopMonitorsLt24', 'Laptop monitors less than 24"',  'laptopMonitorsLt24Qty')}
+    </div>
+
+    <div class="card">
+      <div class="card-title"><div class="card-title-icon">🖨️</div>Printers</div>
+      <div class="yn-row">
+        <div class="yn-label">Printers present?</div>
+        <div class="yn-controls">
+          <div class="yn-btn ${S.printers==='yes'?'yes':''}" onclick="setToggle('printers','yes');renderStep()">Yes</div>
+          <div class="yn-btn ${S.printers==='no'?'no':''}"   onclick="setToggle('printers','no');renderStep()">No</div>
+        </div>
+      </div>
+      ${S.printers==='yes' ? `
+      <div class="num-row">
+        <div class="num-info"><div class="num-label">GP Printers</div></div>
+        ${numInput('printersGP', S.printersGP)}
+      </div>
+      <div class="num-row">
+        <div class="num-info"><div class="num-label">MFD Printers</div><div class="num-sub">Multi-function devices</div></div>
+        ${numInput('printersMFD', S.printersMFD)}
+      </div>` : ''}
+    </div>
+
+    <div class="card">
+      <div class="card-title"><div class="card-title-icon">📷</div>Scanners</div>
+      ${ynRow('docScanner',     'Document Scanner', 'docScannerQty')}
+      ${ynRow('badgeScanner',   'Badge Scanner',    'badgeScannerQty')}
+      ${ynRow('barcodeScanner', 'Barcode Scanner',  'barcodeScannerQty')}
+    </div>`;
+}
+
+function ynRow(key, label, qtyKey) {
+  const ya = S[key]==='yes', na = S[key]==='no';
+  return `<div class="yn-row">
+    <div class="yn-label">${label}</div>
+    <div class="yn-controls">
+      <div class="yn-btn ${ya?'yes':''}" onclick="setToggle('${key}','yes');renderStep()">Yes</div>
+      <div class="yn-btn ${na?'no':''}"  onclick="setToggle('${key}','no');renderStep()">No</div>
+      ${ya ? `<div class="yn-qty-wrap">
+        <button class="yn-qty-btn" onclick="adj('${qtyKey}',-1)">−</button>
+        <input class="yn-qty-in" type="number" id="n_${qtyKey}" value="${S[qtyKey]||0}" min="0" oninput="S['${qtyKey}']=n(this.value)">
+        <button class="yn-qty-btn" onclick="adj('${qtyKey}',1)">+</button>
+      </div>` : ''}
+    </div>
+  </div>`;
+}
+
+function numInput(key, val) {
+  return `<div class="num-input-wrap">
+    <button class="num-btn" onclick="adj('${key}',-1)">−</button>
+    <input class="num-field" type="number" id="n_${key}" value="${val}" min="0" oninput="S['${key}']=n(this.value)">
+    <button class="num-btn" onclick="adj('${key}',1)">+</button>
+  </div>`;
+}
+
+// ── STEP 2: WIFI ──────────────────────────────────────────────────────────────
+function renderStep2(c) {
+  c.innerHTML += `
+    <div class="card">
+      <div class="card-title"><div class="card-title-icon">📶</div>WiFi Quality</div>
+      <div class="field"><label>Is WiFi satisfactory in this department?</label>
+        <div class="toggle-group">
+          <div class="toggle-btn ${S.wifiSatisfied==='yes'?'active':''}"            onclick="setToggle('wifiSatisfied','yes');renderStep()">✓ Satisfied</div>
+          <div class="toggle-btn ${S.wifiSatisfied==='no'?'active active-warn':''}" onclick="setToggle('wifiSatisfied','no');renderStep()">⚠ Issues</div>
+          <div class="toggle-btn ${S.wifiSatisfied==='na'?'active':''}"             onclick="setToggle('wifiSatisfied','na');renderStep()">N/A</div>
+        </div>
+      </div>
+      ${S.wifiSatisfied==='no' ? `
+      <div class="field" style="margin-top:12px"><label>Describe the WiFi issues</label>
+        <textarea id="f_wifiNotes" placeholder="e.g. Poor signal in back corridor, no coverage in Room 3…">${S.wifiNotes}</textarea></div>` : ''}
+      ${S.wifiSatisfied==='yes' ? `<div class="info-box"><span class="info-box-icon">✅</span>WiFi is satisfactory — no action needed.</div>` : ''}
+    </div>`;
+}
+
+// ── STEP 3: DOCUMENTATION ─────────────────────────────────────────────────────
+function renderStep3(c) {
+  const presets = ['At desk','Nursing station','Admin area','At bedside','Mixed / various'];
+  c.innerHTML += `
+    <div class="card">
+      <div class="card-title"><div class="card-title-icon">📋</div>Documentation Location</div>
+      <div class="field">
+        <label>Where does most documentation currently take place?</label>
+        <div class="toggle-group" style="flex-wrap:wrap;gap:8px;margin-bottom:12px">
+          ${presets.map(opt=>`<div class="toggle-btn ${S.docLocation===opt?'active':''}" style="flex:0 0 auto;padding:10px 14px" onclick="S.docLocation='${opt}';renderStep()">${opt}</div>`).join('')}
+        </div>
+        <input type="text" id="f_docLocation" placeholder="Or type a custom location…" value="${presets.includes(S.docLocation)?'':S.docLocation}">
+      </div>
+      <div class="info-box"><span class="info-box-icon">💡</span>Walk the department with the manager to verify documentation patterns where possible.</div>
+    </div>`;
+}
+
+// ── STEP 4: POWER ─────────────────────────────────────────────────────────────
+function renderStep4(c) {
+  c.innerHTML += `
+    <div class="card">
+      <div class="card-title"><div class="card-title-icon">⚡</div>Power & Extension Cords</div>
+      <div class="field"><label>Are there any existing extension cords in use?</label>
+        <div class="toggle-group">
+          <div class="toggle-btn ${S.powerNeeds==='yes'?'active active-warn':''}" onclick="setToggle('powerNeeds','yes');renderStep()">⚠ Yes</div>
+          <div class="toggle-btn ${S.powerNeeds==='no'?'active':''}"              onclick="setToggle('powerNeeds','no');renderStep()">✓ No</div>
+        </div>
+      </div>
+      ${S.powerNeeds==='yes' ? `
+      <div class="field" style="margin-top:12px"><label>Which rooms have extension cords?</label>
+        <textarea id="f_powerNotes" placeholder="e.g. Room 2, nurses station, back corridor…">${S.powerNotes}</textarea></div>` : ''}
+    </div>
+    ${S.powerNeeds==='yes' ? `
+    <div class="power-link-card">
+      <div class="power-link-title">⚡ Power Assessment Tool</div>
+      <div class="power-link-sub">Use the dedicated power planning app to log exact locations and mark power/data port requirements.</div>
+      <a href="https://incredible-brioche-9a85a2.netlify.app/" target="_blank" class="power-link-btn">Open Power App ↗</a>
+    </div>` : ''}`;
+}
+
+// ── STEP 5: REVIEW ────────────────────────────────────────────────────────────
+function renderStep5(c) {
+  const fn = buildFilename();
+  const queueLen = getQueue().length;
+
+  function rv(v) {
+    if (v==='yes') return `<span class="rv yes-val">✓ Yes</span>`;
+    if (v==='no')  return `<span class="rv no-val">✗ No</span>`;
+    if (v==='na')  return `<span class="rv">N/A</span>`;
+    return `<span class="rv">${v||'—'}</span>`;
+  }
+  const rrow     = (k,v)  => `<div class="review-row"><span class="rk">${k}</span>${rv(v)}</div>`;
+  const rrowText = (k,v)  => `<div class="review-row"><span class="rk">${k}</span><span class="rv">${v||'—'}</span></div>`;
+  const rrowNum  = (k,v)  => `<div class="review-row"><span class="rk">${k}</span><span class="rv">${n(v)}</span></div>`;
+  const ynTxt    = (k,qk) => S[k]==='yes' ? `Yes – ${S[qk]}` : (S[k]||'—');
+
+  if (queueLen > 0) {
+    c.innerHTML += `<div class="queued-box"><span class="info-box-icon">📋</span>${queueLen} assessment${queueLen>1?'s are':' is'} saved locally and will sync to Google Sheets when you're back online.</div>`;
+  }
+
+  c.innerHTML += `
+    <div class="review-section-title">🏥 Department</div>
+    <div class="card">
+      ${rrowText('Assessor',       S.assessor)}
+      ${rrowText('Site',           S.site)}
+      ${rrowText('Location',       S.location)}
+      ${rrowText('Floor / Room',   (S.floor||'—')+' / '+(S.room||'—'))}
+      ${rrowText('Department',     S.department)}
+      ${rrowText('Contact',        S.locationContact)}
+      ${rrowText('Contact Details',S.contactDetails)}
+      ${rrow('EPR – iCARE',        S.eprIcare)}
+      ${S.eprIcare==='no' && S.eprNoComments ? rrowText('Comments', S.eprNoComments) : ''}
+    </div>
+
+    ${S.eprIcare==='yes' ? `
+    <div class="review-section-title">💻 Equipment</div>
+    <div class="card">
+      ${rrowNum('Staff on iCARE',        S.staffIcare)}
+      ${rrowText('WS running iCARE',     ynTxt('wsIcare','wsIcareQty'))}
+      ${rrowText('Monitors (WS)',        ynTxt('wsMonitors','wsMonitorsQty'))}
+      ${rrowText('WS monitors < 24"',    ynTxt('monitorsLt24','monitorsLt24Qty'))}
+      ${rrowText('Laptops (iCARE)',      ynTxt('laptopsIcare','laptopsIcareQty'))}
+      ${rrowText('Monitors (laptops)',   ynTxt('laptopMonitors','laptopMonitorsQty'))}
+      ${rrowText('Laptop mon. < 24"',   ynTxt('laptopMonitorsLt24','laptopMonitorsLt24Qty'))}
+      ${rrowText('Printers',            S.printers==='yes'?`Yes – GP:${S.printersGP} MFD:${S.printersMFD}`:S.printers)}
+      ${rrowText('Doc Scanner',         ynTxt('docScanner','docScannerQty'))}
+      ${rrowText('Badge Scanner',       ynTxt('badgeScanner','badgeScannerQty'))}
+      ${rrowText('Barcode Scanner',     ynTxt('barcodeScanner','barcodeScannerQty'))}
+    </div>
+
+    <div class="review-section-title">📶 WiFi & Environment</div>
+    <div class="card">
+      ${rrow('WiFi', S.wifiSatisfied)}
+      ${S.wifiNotes ? rrowText('WiFi Notes', S.wifiNotes) : ''}
+      ${rrowText('Documentation', S.docLocation)}
+      ${rrow('Extension cords', S.powerNeeds)}
+      ${S.powerNotes ? rrowText('Power Notes', S.powerNotes) : ''}
+    </div>` : `<div class="warn-box" style="margin:0 0 14px"><span class="info-box-icon">⚠️</span>Equipment, WiFi and documentation steps were skipped — iCARE not in use at this site.</div>`}
+
+    <div class="review-section-title">📁 Save Reference</div>
+    <div class="card">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:6px">This assessment will be saved as:</div>
+      <div class="chip">${fn}</div>
+    </div>`;
+}
+
+// ── SUBMIT ────────────────────────────────────────────────────────────────────
+async function submitForm() {
+  const btn = $('submitBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Saving…';
+
+  const payload = { ...S, filename: buildFilename(), submittedAt: new Date().toISOString() };
+
+  if (!isOnline) {
+    enqueue(payload);
+    btn.disabled = false;
+    btn.textContent = '💾  Save to Google Sheets';
+    showSuccessOffline();
+    return;
+  }
+
+  showBanner('saving', '⏫  Saving to Google Sheets…');
+  try {
+    await fetch(SCRIPT_URL+'?data='+encodeURIComponent(JSON.stringify(payload)),{method:'GET',mode:'no-cors'});
+    showBanner('saved', '✅  Assessment saved to Google Sheets!', 4000);
+    showSuccess();
+  } catch(e) {
+    enqueue(payload);
+    btn.disabled = false;
+    btn.textContent = '💾  Save to Google Sheets';
+    showBanner('queued', '📋  Connection failed — saved locally, will sync when back online', 5000);
+  }
+}
+
+function showSuccess() {
+  $('appContent').innerHTML = `
+    <div class="success-screen">
+      <div class="success-icon">✓</div>
+      <div class="success-title">Assessment saved!</div>
+      <div class="success-sub">Assessment recorded successfully in Google Sheets.</div>
+      <div class="success-links">
+        <a href="${SHEET_URL}" target="_blank" class="link-btn primary">📊 Open Google Sheet</a>
+        <button class="link-btn" onclick="resetForm()">+ New Assessment</button>
+      </div>
+    </div>`;
+  $('bottomNav').innerHTML = '';
+  $('progressFill').style.width = '100%';
+}
+
+function showSuccessOffline() {
+  $('appContent').innerHTML = `
+    <div class="success-screen">
+      <div class="success-icon" style="background:#6B4FC8">📋</div>
+      <div class="success-title">Saved offline</div>
+      <div class="success-sub">Your assessment is safely stored on this device and will automatically sync to Google Sheets the next time you're online.</div>
+      <div class="success-links">
+        <button class="link-btn primary" onclick="resetForm()">+ New Assessment</button>
+      </div>
+    </div>`;
+  $('bottomNav').innerHTML = '';
+  $('progressFill').style.width = '100%';
+}
+
+function resetForm() {
+  Object.keys(S).forEach(k => { S[k] = typeof S[k]==='number' ? 0 : ''; });
+  step = 0; renderStep(); window.scrollTo(0,0); updateOnlineStatus();
+}
+
+// ── INPUT BINDING ─────────────────────────────────────────────────────────────
+function setToggle(key, val) { S[key] = val; }
+
+function adj(key, delta) {
+  S[key] = Math.max(0, n(S[key]) + delta);
+  const el = document.getElementById('n_'+key);
+  if (el) el.value = S[key];
+}
+
+function bindInputs() {
+  ['assessor','location','floor','room','department','locationContact',
+   'contactDetails','wifiNotes','powerNotes','eprNoComments'].forEach(k => {
+    const el = $('f_'+k);
+    if (el) el.oninput = () => { S[k] = el.value; };
+  });
+  const site = $('f_site');
+  if (site) site.onchange = () => { S.site = site.value; };
+  const dl = $('f_docLocation');
+  if (dl) dl.oninput = () => { if(dl.value) S.docLocation = dl.value; };
+}
+
+// ── SERVICE WORKER (enables offline caching) ──────────────────────────────────
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+// ── BOOT ──────────────────────────────────────────────────────────────────────
+updateOnlineStatus();
+renderStep();
+</script>
+</body>
+</html>
