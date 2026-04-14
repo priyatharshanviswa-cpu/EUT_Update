@@ -221,8 +221,8 @@
 
 <script>
 // ── CONFIG ── replace these with your deployed values ─────────────────────────
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzcS0RrecoLwlVdgk9lrNj0xwBt8XCsH6cpxMPEfMpjpQ60D7KKZU0VzSMfAC1_nEF2dA/exec';
-const SHEET_URL  = 'https://docs.google.com/spreadsheets/d/1l6RwbVaag8XEaaxfLdglBeaL5n0nSKu13e9fEYDJHKk/edit?gid=0#gid=0';
+const SCRIPT_URL = 'YOUR_APPS_SCRIPT_URL_HERE';
+const SHEET_URL  = 'YOUR_SHEET_URL_HERE';
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
 const S = {
@@ -447,7 +447,7 @@ function renderStep0(c) {
       <div class="field"><label>Location Contact</label>
         <input type="text" id="f_locationContact" value="${S.locationContact}" placeholder="Name"></div>
       <div class="field"><label>Contact Details</label>
-        <input type="tel" id="f_contactDetails" value="${S.contactDetails}" placeholder="Phone / email"></div>
+        <input type="text" id="f_contactDetails" value="${S.contactDetails}" placeholder="Phone / email"></div>
     </div>
 
     <div class="card">
