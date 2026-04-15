@@ -229,7 +229,7 @@ const S = {
   // Step 1 – Department (no dept manager field)
   assessor:'', site:'', location:'', floor:'', room:'',
   department:'', locationContact:'', contactDetails:'',
-  eprIcare:'', eprNoComments:'',
+  eprIcare:'', eprNoComments:'', seePatients:'',
 
   // Step 2 – Equipment
   staffIcare:0,
@@ -240,6 +240,7 @@ const S = {
   laptopMonitors:'no',     laptopMonitorsQty:0,
   laptopMonitorsLt24:'no', laptopMonitorsLt24Qty:0, // laptop monitors <24"  ← NEW
   printers:'no',           printersGP:0, printersMFD:0,
+  specimenLabel:'no',      specimenLabelQty:0,
   docScanner:'no',         docScannerQty:0,
   badgeScanner:'no',       badgeScannerQty:0,
   barcodeScanner:'no',     barcodeScannerQty:0,
@@ -451,6 +452,16 @@ function renderStep0(c) {
     </div>
 
     <div class="card">
+      <div class="card-title"><div class="card-title-icon">🏥</div>Patient Contact</div>
+      <div class="field"><label>Does this department see patients? <span class="req">*</span></label>
+        <div class="toggle-group">
+          <div class="toggle-btn ${S.seePatients==='yes'?'active':''}"            onclick="setToggle('seePatients','yes');renderStep()">✓ Yes</div>
+          <div class="toggle-btn ${S.seePatients==='no'?'active active-warn':''}" onclick="setToggle('seePatients','no');renderStep()">✗ No</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="card-title"><div class="card-title-icon">🖥️</div>EPR System</div>
       <div class="field"><label>Do staff use EPR – iCARE? <span class="req">*</span></label>
         <div class="toggle-group">
@@ -512,6 +523,7 @@ function renderStep1(c) {
         <div class="num-info"><div class="num-label">MFD Printers</div><div class="num-sub">Multi-function devices</div></div>
         ${numInput('printersMFD', S.printersMFD)}
       </div>` : ''}
+      ${ynRow('specimenLabel', 'Specimen / Patient Label Printer', 'specimenLabelQty')}
     </div>
 
     <div class="card">
@@ -635,6 +647,7 @@ function renderStep5(c) {
       ${rrowText('Department',     S.department)}
       ${rrowText('Contact',        S.locationContact)}
       ${rrowText('Contact Details',S.contactDetails)}
+      ${rrow('Sees Patients',       S.seePatients)}
       ${rrow('EPR – iCARE',        S.eprIcare)}
       ${S.eprIcare==='no' && S.eprNoComments ? rrowText('Comments', S.eprNoComments) : ''}
     </div>
@@ -652,6 +665,7 @@ function renderStep5(c) {
       ${rrowText('Printers',            S.printers==='yes'?`Yes – GP:${S.printersGP} MFD:${S.printersMFD}`:S.printers)}
       ${rrowText('Doc Scanner',         ynTxt('docScanner','docScannerQty'))}
       ${rrowText('Badge Scanner',       ynTxt('badgeScanner','badgeScannerQty'))}
+      ${rrowText('Specimen Label Printer', ynTxt('specimenLabel','specimenLabelQty'))}
       ${rrowText('Barcode Scanner',     ynTxt('barcodeScanner','barcodeScannerQty'))}
     </div>
 
